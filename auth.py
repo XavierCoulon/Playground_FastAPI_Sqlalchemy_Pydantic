@@ -96,7 +96,7 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 		raise token_exception()
 	token_expires = timedelta(minutes=1000)
 	token = create_access_token(user.email, user.id, expires_delta=token_expires)
-	return {"token": token}
+	return {"status": 200, "token": token}
 
 
 @app.put("/users/{user_id}")
@@ -126,6 +126,19 @@ def token_exception():
 		detail="Incorrect email or password",
 		headers={"WWW-Authenticate": "Bearer"})
 	return token_exception
+
+@app.delete("/users/{user_id}")
+def delete_user(user_id: int, db: Session = Depends(get_db)):
+
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    
+    if user is None:
+        raise http_exception()
+    
+    db.query(models.User).filter(models.User.id == user_id).delete()
+    
+    db.commit()
+    return {"status": 200, "transaction": "user deleted" }
 
 def http_exception():
     return HTTPException(status_code=404, detail="User not found")
