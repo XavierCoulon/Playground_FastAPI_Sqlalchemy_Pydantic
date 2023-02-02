@@ -5,6 +5,7 @@ class TodoBase(BaseModel):
 	description: str | None = None
 	priority: int | None = None
 	complete: bool
+	category_id: int
 
 class TodoCreate(TodoBase):
 	pass
@@ -12,7 +13,6 @@ class TodoCreate(TodoBase):
 class Todo(TodoBase):
 	id: int
 	owner_id: int
-	category_id: int
 
 	class Config:
 		orm_mode = True
@@ -39,6 +39,7 @@ class CategoryCreate(CategoryBase):
 
 class Category(CategoryBase):
 	id: int
+	owner_id: int
 	todos: list[Todo] = []
 
 	class Config:

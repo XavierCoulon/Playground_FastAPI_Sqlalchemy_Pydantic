@@ -13,8 +13,9 @@ class Todo(Base):
     description = Column(String)
     priority = Column(Integer)
     complete = Column(Boolean, default=False)
-    owner_id = Column(Integer, ForeignKey("users.id"))
-    category_id = Column(Integer, ForeignKey("categories.id"))
+
+    owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
+    category_id = Column(Integer, ForeignKey("categories.id", ondelete="CASCADE"))
     
     owner = relationship("User", back_populates="todos")
     category = relationship("Category", back_populates="todos")
@@ -27,11 +28,15 @@ class User(Base):
     hashed_password = Column(String)
 
     todos = relationship("Todo", back_populates="owner")
+    categories = relationship("Category", back_populates="owner")
 
 class Category(Base):
     __tablename__ = "categories"
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String)
+
+    owner_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"))
     
+    owner = relationship("User", back_populates="categories")
     todos = relationship("Todo", back_populates="category")

@@ -20,33 +20,51 @@ def get_db():
 def get_password_hash(password):
     return bcrypt_context.hash(password)
 
-@app.get("/categories/")
-def get_categories(db: Session = Depends(get_db)):
-    return db.query(models.Category).all()
+
+@app.get("/categories")
+async def get_categories_by_user(user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+    if user is None:
+        raise get_user_exception()
+    return db.query(models.Category).filter(models.Category.owner_id == user.get("id")).all()
 
 @app.get("/categories/{category_id}")
-def get_category(category_id: int, db: Session = Depends(get_db)):
-    category = db.query(models.Category).filter(models.Category.id == category_id).first()
+def get_category(category_id: int, user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+    category = db.query(models.Category).filter(models.Category.id == category_id).filter(models.Category.owner_id == user.get("id")).first()
     if category is not None:
         return category
     raise http_exception()
 
-@app.post("/categories/")
-def create_category(category: schemas.CategoryCreate, db: Session = Depends(get_db)):
-    category = models.Category(name=category.name)
+@app.post("/categories")
+def create_category(category: schemas.CategoryCreate, user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+    category = models.Category(name=category.name, owner_id=user.get("id"))
     db.add(category)
     db.commit()
     db.refresh(category)
-    return category
+    return {"status": 201, "transaction": "category created" }
+
+@app.delete("/categories/{category_id}")
+def delete_category(category_id: int,
+                user: dict = Depends(get_current_user),
+                db: Session = Depends(get_db)):
+    
+    if user is None:
+        raise get_user_exception()
+
+    category = db.query(models.Category).filter(models.Category.id == category_id).filter(models.Category.owner_id == user.get("id")).first()
+    
+    if category is None:
+        raise http_exception()
+    
+    db.query(models.Category).filter(models.Category.id == category_id).delete()
+    
+    db.commit()
+    return {"status": 200, "transaction": "category deleted" }
+
 
 # Todo CRUD
 
-@app.get("/todos/")
-def get_todos(db: Session = Depends(get_db)):
-    return db.query(models.Todo).all()
-
-@app.get("/todos/user")
-async def get_all_by_user(user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+@app.get("/todos")
+async def get_todos_by_user(user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     if user is None:
         raise get_user_exception()
     return db.query(models.Todo).filter(models.Todo.owner_id == user.get("id")).all()
@@ -59,17 +77,26 @@ def get_todo(todo_id: int, user: dict = Depends(get_current_user), db: Session =
     raise http_exception()
 
 
-@app.post("/todos/")
-def create_todo( category_id: int,  todo: schemas.TodoCreate, user: dict = Depends(get_current_user), db: Session = Depends(get_db), ):
-    new_todo = models.Todo(**todo.dict(), owner_id=user.get("id"), category_id=category_id)
+@app.post("/todos")
+def create_todo(todo: schemas.TodoCreate,
+                user: dict = Depends(get_current_user),
+                db: Session = Depends(get_db)):
+    new_todo = models.Todo(**todo.dict(), owner_id=user.get("id"))
     db.add(new_todo)
     db.commit()
     db.refresh(new_todo)
     return {"status": 201, "new todo": new_todo }
 
 @app.put("/todos/{todo_id}")
-def update_todo(todo_id: int, todo: schemas.TodoCreate, db: Session = Depends(get_db)):
-    todo_to_update = db.query(models.Todo).filter(models.Todo.id == todo_id).first()
+def update_todo(todo_id: int,
+                todo: schemas.TodoCreate,
+                user: dict = Depends(get_current_user),
+                db: Session = Depends(get_db)):
+    
+    if user is None:
+        raise get_user_exception()
+
+    todo_to_update = db.query(models.Todo).filter(models.Todo.id == todo_id).filter(models.Todo.owner_id == user.get("id")).first()
     
     if todo_to_update is None:
         raise http_exception()
@@ -78,10 +105,29 @@ def update_todo(todo_id: int, todo: schemas.TodoCreate, db: Session = Depends(ge
     todo_to_update.description = todo.description
     todo_to_update.priority = todo.priority
     todo_to_update.complete = todo.complete
+    todo_to_update.category_id = todo.category_id
     
     db.add(todo_to_update)
     db.commit()
-    return {"status": 201, "transaction": "successful" }
+    return {"status": 201, "transaction": "todo updated" }
+
+@app.delete("/todos/{todo_id}")
+def delete_todo(todo_id: int,
+                user: dict = Depends(get_current_user),
+                db: Session = Depends(get_db)):
+    
+    if user is None:
+        raise get_user_exception()
+
+    todo = db.query(models.Todo).filter(models.Todo.id == todo_id).filter(models.Todo.owner_id == user.get("id")).first()
+    
+    if todo is None:
+        raise http_exception()
+    
+    db.query(models.Todo).filter(models.Todo.id == todo_id).delete()
+    
+    db.commit()
+    return {"status": 200, "transaction": "todo deleted" }
 
 def http_exception():
     return HTTPException(status_code=404, detail="Item not found")
