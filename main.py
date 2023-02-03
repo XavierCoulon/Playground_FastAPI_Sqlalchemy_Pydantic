@@ -1,5 +1,5 @@
 from fastapi import FastAPI, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 import models, schemas
 from database import engine, SessionLocal
 from auth import get_current_user, get_user_exception
@@ -21,6 +21,8 @@ def get_password_hash(password):
     return bcrypt_context.hash(password)
 
 
+# Category CRUD
+
 @app.get("/categories")
 async def get_categories_by_user(user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     if user is None:
@@ -40,7 +42,7 @@ def create_category(category: schemas.CategoryCreate, user: dict = Depends(get_c
     db.add(category)
     db.commit()
     db.refresh(category)
-    return {"status": 201, "transaction": "category created" }
+    return {"status": 201, "transaction": "category created", "id": category.id }
 
 @app.delete("/categories/{category_id}")
 def delete_category(category_id: int,
@@ -67,11 +69,11 @@ def delete_category(category_id: int,
 async def get_todos_by_user(user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     if user is None:
         raise get_user_exception()
-    return db.query(models.Todo).filter(models.Todo.owner_id == user.get("id")).all()
+    return db.query(models.Todo).options(joinedload(models.Todo.category)).filter(models.Todo.owner_id == user.get("id")).all()
 
 @app.get("/todos/{todo_id}")
 def get_todo(todo_id: int, user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
-    todo = db.query(models.Todo).filter(models.Todo.id == todo_id).filter(models.Todo.owner_id == user.get("id")).first()
+    todo = db.query(models.Todo).options(joinedload(models.Todo.category)).filter(models.Todo.id == todo_id).filter(models.Todo.owner_id == user.get("id")).first()
     if todo is not None:
         return todo
     raise http_exception()
@@ -109,7 +111,7 @@ def update_todo(todo_id: int,
     
     db.add(todo_to_update)
     db.commit()
-    return {"status": 201, "transaction": "todo updated" }
+    return {"status": 200, "transaction": "todo updated" }
 
 @app.delete("/todos/{todo_id}")
 def delete_todo(todo_id: int,
